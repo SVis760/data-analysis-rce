@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>XML Data Comparison Dashboard</title>
+  <!-- Include Chart.js and Papa Parse from CDNs -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f4f4f4;
+      margin: 20px;
+    }
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: #fff;
+      padding: 20px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    h1, h2 {
+      text-align: center;
+    }
+    select {
+      display: block;
+      margin: 0 auto 20px auto;
+      padding: 8px;
+      font-size: 16px;
+    }
+    canvas {
+      display: block;
+      margin: 0 auto;
+    }
+    .summary {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    .summary span {
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>XML Data Comparison Dashboard</h1>
+    
+    <!-- Dropdown for selecting an attribute -->
+    <select id="attributeSelect"></select>
+    
+    <!-- Summary display for the selected attribute -->
+    <div class="summary" id="summaryDisplay"></div>
+    
+    <!-- Comparison Barplot -->
+    <canvas id="comparisonChart" width="800" height="400"></canvas>
+  </div>
+  
+  <script>
+    let csvData = []; // Will hold parsed CSV rows
+    let chartInstance = null; // Chart.js instance
+
+    // Update the dashboard for the selected attribute
+    function updateDashboard(selectedAttribute) {
+      // Find the CSV row matching the selected attribute
+      const row = csvData.find(item => {
+        const attrib = item["attribuut"] ? item["attribuut"].trim() : "";
+        return attrib === selectedAttribute;
+      });
+      if (!row) {
+        console.error("Selected attribute not found in CSV data:", selectedAttribute);
+        return;
+      }
+      const preValue = Number(row["Pre Triply import"]);
+      const postValue = Number(row["Post Triply import"]);
+
+      // Update the summary display
+      document.getElementById('summaryDisplay').innerHTML = `
+        <p>Selected attribuut: <span>${selectedAttribute}</span></p>
+        <p>Pre Triply import: <span>${preValue}</span> | Post Triply import: <span>${postValue}</span></p>
+      `;
+
+      // Update or create the chart
+      if (chartInstance) {
+        chartInstance.data.datasets[0].label = selectedAttribute;
+        chartInstance.data.datasets[0].data = [preValue, postValue];
+        chartInstance.options.plugins.title.text = `Comparison for ${selectedAttribute}`;
+        chartInstance.update();
+      } else {
+        const ctx = document.getElementById('comparisonChart').getContext('2d');
+        chartInstance = new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: ['Pre Triply import', 'Post Triply import'],
+            datasets: [{
+              label: selectedAttribute,
+              data: [preValue, postValue],
+              backgroundColor: [
+                'rgba(54, 162, 235, 0.6)',
+                'rgba(255, 99, 132, 0.6)'
+              ]
+            }]
+          },
+          options: {
+            responsive: true,
+            scales: {
+              y: {
+                beginAtZero: true,
+                ticks: { precision: 0 }
+              }
+            },
+            plugins: {
+              title: {
+                display: true,
+                text: `Comparison for ${selectedAttribute}`
+              }
+            }
+          }
+        });
+      }
+    }
+
+    // Load CSV data and populate the dropdown
+    function loadCSVData() {
+      Papa.parse('csv/vergelijkingen_telling.csv', {
+        download: true,
+        header: true,
+        complete: function(results) {
+          csvData = results.data;
+          console.log("Parsed CSV Data:", csvData);
+          if (csvData.length > 0) {
+            console.log("CSV Headers:", Object.keys(csvData[0]));
+          }
+          const select = document.getElementById('attributeSelect');
+          select.innerHTML = '';
+
+          // Populate dropdown with the trimmed value of "attribuut" for each row
+          csvData.forEach(row => {
+            let attrib = row["attribuut"] ? row["attribuut"].trim() : "";
+            if (attrib) {
+              const option = document.createElement('option');
+              option.value = attrib;
+              option.textContent = attrib;
+              select.appendChild(option);
+            }
+          });
+
+          // Set default selection to "choId" if it exists; otherwise, use the first attribute
+          let defaultAttribute = "choId";
+          const found = Array.from(select.options).some(option => option.value === defaultAttribute);
+          if (!found && select.options.length > 0) {
+            defaultAttribute = select.options[0].value;
+          }
+          select.value = defaultAttribute;
+          updateDashboard(defaultAttribute);
+
+          // Listen for changes in the dropdown
+          select.addEventListener('change', function() {
+            updateDashboard(this.value);
+          });
+        },
+        error: function(err) {
+          console.error("Error loading CSV data:", err);
+        }
+      });
+    }
+
+    // Load CSV data when the page loads
+    window.onload = loadCSVData;
+  </script>
+</body>
+</html>
